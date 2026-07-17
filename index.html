@@ -6,31 +6,21 @@
     <title>해양알칼리도 향상 기술 적합성 분석 대시보드</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- PapaParse -->
+    <!-- PapaParse (CSV 파싱) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- 🌟 Leaflet.js (실시간 지도 라이브러리 CSS & JS) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif; }
-        
-        /* 🗺️ 한반도 지도가 절대로 안 사라지고 무조건 영역을 잡도록 강제 고정 */
-        .map-canvas-container {
-            position: relative;
+        /* 🗺️ 진짜 지도 영역의 높이와 스타일 강제 지정 */
+        #map {
             width: 100%;
-            height: 600px;
-            /* 고해상도 한반도 베이스 맵 이미지를 배경으로 직접 바인딩 */
-            background-image: url('https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1000&auto=format&fit=crop'); 
-            background-size: cover;
-            background-position: center;
-            border-radius: 20px;
-            overflow: hidden;
-            border: 2px solid #334155;
+            height: 550px;
+            border-radius: 16px;
             box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
-        }
-
-        /* 어두운 반투명 레이어를 깔아 실제 지도가 배경으로 보이면서도 마커가 잘 띄도록 처리 */
-        .map-overlay {
-            position: absolute;
-            inset: 0;
-            background: rgba(15, 23, 42, 0.85); /* 짙은 네이비 톤 필터 */
+            border: 2px solid #334155;
+            z-index: 10;
         }
     </style>
 </head>
@@ -41,9 +31,9 @@
         <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
             <div>
                 <h1 class="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-                    <span>🗺️</span> 대한민국 연안별 해양알칼리도 공간 지도 시뮬레이터
+                    <span>🌊</span> 대한민국 연안 해양알칼리도 분석 지도 대시보드
                 </h1>
-                <p class="text-xs text-slate-400 mt-1">지도가 안 뜨는 현상을 완벽히 해결한 지도 이미지 고정 프레임워크</p>
+                <p class="text-xs text-slate-400 mt-1">실시간 위성/지리 지도 엔진 및 데이터 실시간 연동 시스템</p>
             </div>
             <div class="text-xs bg-slate-900 px-3 py-2 rounded-lg border border-slate-800 text-slate-300">
                 <strong>대상 파일:</strong> 2002-2025_해양데이터_pH8.15초과_판정.csv
@@ -63,7 +53,7 @@
                     <span>✍️</span> 신규 연안 직접 입력 판정
                 </h2>
                 <p class="text-xs text-slate-400 mb-4 leading-relaxed">
-                    시뮬레이션 데이터를 입력하면 지도상에 파란색 움직이는 신규 마커가 생성됩니다.
+                    새로운 연안 정보를 입력하면 실시간으로 지도 위에 마커가 바로 생성됩니다.
                 </p>
                 <form id="simulator-form" class="space-y-3 text-slate-300">
                     <div>
@@ -76,7 +66,7 @@
                     </div>
                     <div>
                         <label class="block text-xs font-bold mb-1">연안 이름</label>
-                        <input type="text" id="sim-coast" class="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500" placeholder="예: 해운대연안" required>
+                        <input type="text" id="sim-coast" class="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500" placeholder="예: 부산해운대" required>
                     </div>
                     <div class="grid grid-cols-2 gap-2">
                         <div>
@@ -123,66 +113,37 @@
             </div>
         </div>
 
-        <!-- 오른쪽 비주얼 대시보드 및 지도 (8칸) -->
+        <!-- 오른쪽 비주얼 대시보드 및 진짜 지도 (8칸) -->
         <div class="lg:col-span-8 flex flex-col gap-6">
             
-            <!-- 🗺️ 대한민국 전도 및 가이드라인 가시화 영역 -->
+            <!-- 🗺️ 진짜 인터랙티브 지도가 뜨는 공간 -->
             <div class="bg-slate-950 p-5 rounded-2xl border border-slate-800 shadow-xl">
                 <div class="flex justify-between items-center mb-3">
                     <h2 class="text-base font-bold text-white flex items-center gap-2">
-                        <span>🗺️</span> 한반도 정밀 공간 가시화 맵 (고정 캔버스 작동 완료)
+                        <span>🗺️</span> 한반도 인터랙티브 지도 (Leaflet 실시간 구동 방식)
                     </h2>
                     <div class="flex gap-4 text-xs font-semibold">
-                        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> 적합</span>
+                        <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> 기술 적합</span>
                         <span class="flex items-center gap-1.5"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> 불가</span>
                     </div>
                 </div>
                 
-                <!-- 캔버스 컨테이너 -->
-                <div class="map-canvas-container">
-                    <!-- 어두운 필터링 레이어 -->
-                    <div class="map-overlay"></div>
-
-                    <!-- 실루엣 가이드와 영해 지리 정보선 오버레이 -->
-                    <svg class="absolute inset-0 w-full h-full z-10 pointer-events-none" viewBox="0 0 500 620" xmlns="http://www.w3.org/2000/svg">
-                        <!-- 해역 표시 텍스트 -->
-                        <text x="45" y="280" fill="#38bdf8" fill-opacity="0.4" font-size="16" font-weight="900" letter-spacing="6">서해 (YELLOW SEA)</text>
-                        <text x="360" y="240" fill="#38bdf8" fill-opacity="0.4" font-size="16" font-weight="900" letter-spacing="6">동해 (EAST SEA)</text>
-                        <text x="260" y="520" fill="#38bdf8" fill-opacity="0.4" font-size="16" font-weight="900" letter-spacing="6">남해 (SOUTH SEA)</text>
-
-                        <!-- 한반도 육지 실루엣 가이드 라인 (그레이 그래픽 패스) -->
-                        <path d="M 230,10 L 245,15 L 255,12 L 265,25 L 255,45 L 245,65 L 250,85 L 245,110 L 265,135 L 280,145 L 305,150 L 325,165 L 340,175 L 350,195 L 345,215 L 352,230 L 368,250 L 385,270 L 372,295 L 365,315 L 362,338 L 375,355 L 378,375 L 365,398 L 348,415 L 322,432 L 305,448 L 290,445 L 282,436 L 268,443 L 250,438 L 232,442 L 222,428 L 216,416 L 200,426 L 182,419 L 172,411 L 166,396 L 162,376 L 176,372 L 186,350 L 176,336 L 179,321 L 163,311 L 161,291 L 173,281 L 169,266 L 156,251 L 166,231 L 161,216 L 156,201 L 166,186 L 161,171 L 159,156 L 163,141 L 156,121 L 151,101 L 161,86 L 166,71 L 186,56 L 201,43 Z" 
-                              fill="#1e293b" fill-opacity="0.75" stroke="#475569" stroke-width="2.5" />
-                        
-                        <!-- 울릉도 / 독도 자궁선 -->
-                        <circle cx="435" cy="235" r="8" fill="#334155" stroke="#475569" stroke-width="2" />
-                        <text x="420" y="218" fill="#94a3b8" font-size="10" font-weight="bold">울릉도</text>
-
-                        <circle cx="468" cy="245" r="5" fill="#334155" stroke="#475569" stroke-width="2" />
-                        <text x="455" y="263" fill="#94a3b8" font-size="10" font-weight="bold">독도</text>
-
-                        <!-- 제주도 실루엣 -->
-                        <path d="M 140,545 C 140,535 160,530 185,530 C 210,530 220,535 220,545 C 220,555 200,560 185,560 C 170,560 140,555 140,545 Z" 
-                              fill="#1e293b" fill-opacity="0.8" stroke="#475569" stroke-width="2" />
-                        <text x="170" y="550" fill="#cbd5e1" font-size="11" font-weight="bold">제주도</text>
-                    </svg>
-                    
-                    <!-- 📍 동적으로 대한민국 국경선에 맞게 표출되는 인터랙티브 마커들 -->
-                    <div id="markers-layer" class="absolute inset-0 z-20 pointer-events-none"></div>
-                </div>
-                <p class="text-[11px] text-slate-400 mt-2">💡 지도 위의 적합/불가 마커 둥근 점을 직접 마우스로 선택할 수 있습니다.</p>
+                <!-- 🔥 여기에 실시간 지도가 직접 주입되어 나타납니다! -->
+                <div id="map"></div>
+                
+                <p class="text-[11px] text-slate-400 mt-2">💡 지도는 마우스 드래그로 이동하고 스크롤로 확대/축소할 수 있습니다. 마커를 누르면 결과 카드가 즉시 갱신됩니다.</p>
             </div>
 
-            <!-- 실시간 결과 리포트 -->
+            <!-- 실시간 분석 결과 리포트 -->
             <div id="result-card" class="bg-gradient-to-r from-slate-900 to-blue-950 text-white p-5 rounded-2xl border border-slate-800 shadow-md">
                 <div class="flex justify-between items-start">
                     <div>
-                        <span class="text-xs uppercase font-semibold text-blue-400 tracking-wider">Suitability Report</span>
-                        <h3 id="res-name" class="text-lg font-bold mt-0.5 text-white">동/남/서해 연안 마커나 표를 클릭해주세요</h3>
+                        <span class="text-xs uppercase font-semibold text-blue-400 tracking-wider">Analysis Result Report</span>
+                        <h3 id="res-name" class="text-lg font-bold mt-0.5 text-white">조회 대기 상태 (지도의 핀을 클릭하세요)</h3>
                     </div>
-                    <div id="status-badge" class="px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-400">조회 대기</div>
+                    <div id="status-badge" class="px-3 py-1 rounded-full text-xs font-bold bg-slate-800 text-slate-400">대기중</div>
                 </div>
-                <div class="grid grid-cols-3 gap-4 mt-4 pt-3 border-t border-slate-850 text-center">
+                <div class="grid grid-cols-3 gap-4 mt-4 pt-3 border-t border-slate-800 text-center">
                     <div>
                         <p class="text-xs text-slate-400">측정 수온</p>
                         <p id="res-temp" class="text-base font-bold mt-0.5 text-blue-200">-</p>
@@ -192,29 +153,29 @@
                         <p id="res-ph" class="text-base font-bold mt-0.5 text-blue-200">-</p>
                     </div>
                     <div>
-                        <p class="text-xs text-slate-400">적용 판정 기준</p>
+                        <p class="text-xs text-slate-400">알고리즘 기준 필터</p>
                         <p id="res-type" class="text-xs font-medium mt-1.5 text-slate-300">-</p>
                     </div>
                 </div>
             </div>
 
-            <!-- 상세 데이터 목록 -->
+            <!-- 상세 데이터 테이블 명세 -->
             <div class="bg-slate-950 p-5 rounded-2xl border border-slate-800 shadow-lg">
-                <h2 class="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">📋 상세 연안 측정 및 기술 적합 데이터 목록</h2>
+                <h2 class="text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">📋 모니터링 대상 연안 원시 데이터 셋</h2>
                 <div class="overflow-x-auto max-h-[220px]">
                     <table class="w-full text-left border-collapse text-xs">
                         <thead>
                             <tr class="bg-slate-900 text-slate-400 sticky top-0 border-b border-slate-800">
                                 <th class="p-2.5 font-semibold">해역</th>
-                                <th class="p-2.5 font-semibold">연안 명칭</th>
-                                <th class="p-2.5 font-semibold">수온 (℃)</th>
+                                <th class="p-2.5 font-semibold">연안 지역명</th>
+                                <th class="p-2.5 font-semibold">수온(℃)</th>
                                 <th class="p-2.5 font-semibold">pH 농도</th>
-                                <th class="p-2.5 font-semibold">도입 여부</th>
+                                <th class="p-2.5 font-semibold">적합 여부</th>
                             </tr>
                         </thead>
                         <tbody id="table-body" class="divide-y divide-slate-900 text-slate-300">
                             <tr>
-                                <td colspan="5" class="p-4 text-center text-slate-500">지리 데이터를 연동하고 있습니다...</td>
+                                <td colspan="5" class="p-4 text-center text-slate-500">데이터 수신 대기 중...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -229,32 +190,55 @@
 
     <script>
         var oceanData = [];
+        var map;
+        var markerGroup;
 
-        // 🗺️ 정적 한반도 셰이프 매칭 좌표 테이블 (500x620 스케일 맞춤)
-        var mapCoords = {
-            '거진연안': [345, 185], '속초연안': [345, 198], '양양연안': [348, 212],
-            '주문진연안': [352, 225], '강릉연안': [358, 238], '동해연안': [366, 255],
-            '삼척연안': [368, 268], '죽변연안': [372, 292], '후포연안': [371, 318],
-            '축산연안': [370, 332], '강구연안': [368, 347], '월포연안': [365, 357],
-            '영일만': [366, 368], '구룡포연안': [375, 375], '감포연안': [368, 388],
-            '기장연안': [348, 408], '진해만': [305, 418], '거제도동안': [315, 428],
-            '거제도남안': [305, 438], '통영연안': [290, 428], '통영외안': [290, 441],
-            '고성자란만': [280, 423], '사천연안': [265, 418], '진주만': [255, 418],
-            '남해도남안': [255, 433], '여수연안': [245, 428], '여자만': [235, 418],
-            '고흥연안': [230, 433], '제주연안': [180, 540], '조천연안': [190, 540],
-            '성산연안': [205, 542], '표선연안': [200, 550], '서귀포연안': [180, 552],
-            '대정연안': [155, 550], '한림연안': [158, 542], '진도연안': [160, 440],
-            '해남만': [175, 435], '목포연안': [170, 420], '신안연안': [155, 415],
-            '무안연안': [173, 405], '고창연안': [175, 375], '전주포연안': [178, 360],
-            '군산연안': [180, 340], '보령연안': [180, 315], '천수만': [175, 305],
-            '태안연안': [165, 285], '가로림연안': [177, 275], '대산연안': [183, 265],
-            '아산연안': [195, 268]
+        // 🗺️ 실제 대한민국 실제 지리적 위도(Latitude)와 경도(Longitude) 매핑 데이터베이스
+        var realCoordinates = {
+            '거진연안': [38.2612, 128.6014], '속초연안': [38.2070, 128.5911], '양양연안': [38.0754, 128.6189],
+            '주문진연안': [37.8912, 128.8285], '강릉연안': [37.7519, 128.9058], '동해연안': [37.5244, 129.1143],
+            '삼척연안': [37.4499, 129.1624], '죽변연안': [37.0604, 129.4182], '후포연안': [36.6784, 129.4554],
+            '축산연안': [36.5028, 129.4411], '강구연안': [36.3609, 129.3879], '월포연안': [36.2057, 129.3845],
+            '영일만': [36.0825, 129.4147], '구룡포연안': [35.9904, 129.5615], '감포연안': [35.8164, 129.5085],
+            '기장연안': [35.2442, 129.2231], '진해만': [35.1051, 128.6139], '거제도동안': [34.8806, 128.7335],
+            '거제도남안': [34.7001, 128.6001], '통영연안': [34.8447, 128.4328], '통영외안': [34.7042, 128.4415],
+            '고성자란만': [34.9085, 128.2435], '사천연안': [34.9351, 128.0825], '진주만': [34.9451, 127.9425],
+            '남해도남안': [34.7451, 127.9025], '여수연안': [34.7604, 127.7618], '여자만': [34.8105, 127.5312],
+            '고흥연안': [34.5005, 127.3512], '제주연안': [33.5111, 126.5222], '조천연안': [33.5385, 126.6341],
+            '성산연안': [33.4611, 126.9241], '표선연안': [33.3211, 126.8341], '서귀포연안': [33.2411, 126.5641],
+            '대정연안': [33.2211, 126.2541], '한림연안': [33.4111, 126.2641], '진도연안': [34.4211, 126.2541],
+            '해남만': [34.5111, 126.4541], '목포연안': [34.7811, 126.3841], '신안연안': [34.8211, 126.1141],
+            '무안연안': [34.9811, 126.4241], '고창연안': [35.5011, 126.5041], '전주포연안': [35.7011, 126.6541],
+            '군산연안': [35.9811, 126.6241], '보령연안': [36.3211, 126.5041], '천수만': [36.4511, 126.4241],
+            '태안연안': [36.7511, 126.1541], '가로림연안': [36.9011, 126.3541], '대산연안': [37.0211, 126.4541],
+            '아산연안': [37.0511, 126.8041]
         };
 
         window.addEventListener('DOMContentLoaded', function() {
+            initMap();
             fetchAndParseCSV();
             initCustomForm();
         });
+
+        // 🌟 지도를 화면에 초기 로드하는 함수 (지도 레벨 및 한반도 중앙 좌표 셋업)
+        function initMap() {
+            // 한반도 중심 좌표 (36.2, 127.8)로 기본 포커싱 후 로드
+            map = L.map('map', {
+                center: [36.2, 127.8],
+                zoom: 7,
+                zoomControl: true
+            });
+
+            // 다크 모드에 최적화된 고급스러운 카토(CartoDB) 지도 타일 레이어 탑재
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+                subdomains: 'abcd',
+                maxZoom: 20
+            }).addTo(map);
+
+            // 마커들을 담을 그룹 레이어 생성
+            markerGroup = L.layerGroup().addTo(map);
+        }
 
         function calculateDecision(region, temp, ph) {
             if (Math.abs(ph - 8.15) > 0.5) {
@@ -271,7 +255,7 @@
         function fetchAndParseCSV() {
             fetch("2002-2025_해양데이터_pH8.15초과_판정.csv")
                 .then(function(res) {
-                    if (!res.ok) throw new Error("로컬 환경 파일 미발견");
+                    if (!res.ok) throw new Error("파일 로드 실패");
                     return res.arrayBuffer();
                 })
                 .then(function(buffer) {
@@ -286,7 +270,7 @@
                     });
                 })
                 .catch(function(err) {
-                    console.log("로컬 테스트 모드 부팅 완료.");
+                    console.log("로컬 독립 가동 데이터 수동 로드");
                     initFilters();
                     renderTable([]);
                 });
@@ -351,11 +335,13 @@
                 var customCoastName = coastInput + " (시뮬)";
                 var decisionResult = calculateDecision(region, temp, ph);
 
-                // 시뮬레이션용 랜덤 배치 좌표 할당
-                var mockX = 250, mockY = 410;
-                if(region === "동해") { mockX = 365; mockY = 280; }
-                else if(region === "서해") { mockX = 170; mockY = 320; }
-                mapCoords[customCoastName] = [mockX + (Math.random()*20 - 10), mockY + (Math.random()*20 - 10)];
+                // 시뮬레이터 입력 시 각 해역별 위치에 랜덤 핀 배치 연산
+                var lat = 36.5, lng = 127.5;
+                if (region === "동해") { lat = 37.5 + (Math.random()*0.4 - 0.2); lng = 129.4 + (Math.random()*0.4 - 0.2); }
+                else if (region === "서해") { lat = 36.3 + (Math.random()*0.4 - 0.2); lng = 126.1 + (Math.random()*0.4 - 0.2); }
+                else if (region === "남해") { lat = 34.6 + (Math.random()*0.4 - 0.2); lng = 127.8 + (Math.random()*0.4 - 0.2); }
+                
+                realCoordinates[customCoastName] = [lat, lng];
 
                 var customRecord = {
                     region: region,
@@ -369,6 +355,9 @@
                 oceanData.unshift(customRecord);
                 refreshView();
                 showDecisionResult(customRecord);
+                
+                // 새로운 핀이 등록되면 그 위치로 지도 카메라 자동 이동
+                map.setView([lat, lng], 8);
 
                 document.getElementById('sim-coast').value = "";
                 document.getElementById('sim-temp').value = "";
@@ -396,7 +385,7 @@
             var isAvail = item.decision.indexOf('사용 가능') !== -1;
 
             if (item.decision.indexOf('오차') !== -1) {
-                typeLabel.textContent = "pH 임계 오차 제한 초과 (±0.5초과)";
+                typeLabel.textContent = "pH 임계 오차 범위 초과 (±0.5초과)";
             } else if (item.region === "동해" || item.region === "서해") {
                 typeLabel.textContent = "동/서해 기준 (수온 17℃↑, pH 8.15↑)";
             } else {
@@ -405,10 +394,10 @@
 
             if (isAvail) {
                 badge.className = "px-3 py-1 rounded-full text-xs font-bold bg-emerald-500 text-white shadow-md";
-                badge.textContent = "🟢 도입 가능";
+                badge.textContent = "🟢 적합 (도입 가능)";
             } else {
                 badge.className = "px-3 py-1 rounded-full text-xs font-bold bg-rose-500 text-white shadow-md";
-                badge.textContent = "🔴 도입 불가";
+                badge.textContent = "🔴 부적합 (도입 불가)";
             }
         }
 
@@ -417,7 +406,7 @@
             tbody.innerHTML = '';
 
             if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-500">조회된 연안 리스트가 없습니다.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-slate-500">데이터가 비어 있습니다.</td></tr>';
                 return;
             }
 
@@ -427,6 +416,10 @@
                 
                 tr.addEventListener('click', function() {
                     showDecisionResult(item);
+                    var coords = realCoordinates[item.coast];
+                    if (coords) {
+                        map.setView(coords, 9);
+                    }
                 });
 
                 var isAvail = item.decision.indexOf('사용 가능') !== -1;
@@ -440,45 +433,42 @@
             });
         }
 
-        // 📍 실제 지도 캔버스 위에 마커 매핑 함수
+        // 📍 실제 지도(Leaflet Map) 위에 마커를 찍어주는 핵심 함수
         function plotMapMarkers(data) {
-            var layer = document.getElementById('markers-layer');
-            layer.innerHTML = ''; 
+            // 기존 마커 전체 삭제 초기화
+            markerGroup.clearLayers();
 
             data.forEach(function(item) {
-                var coords = mapCoords[item.coast];
+                var coords = realCoordinates[item.coast];
                 if (!coords) return;
 
                 var isAvail = item.decision.indexOf('사용 가능') !== -1;
-                var markerColor = isAvail ? 'bg-emerald-400 shadow-emerald-500/50' : 'bg-rose-500 shadow-rose-500/50';
-                
-                if (item.isCustom) {
-                    markerColor = 'bg-blue-400 shadow-blue-500/50 animate-bounce';
-                }
+                var color = isAvail ? '#34d399' : '#f43f5e'; // Emerald-400 vs Rose-500
+                if (item.isCustom) color = '#60a5fa'; // Blue-400
 
-                // 500x620 뷰포트 비율에 따라 완벽한 스케일 계산
-                var xPercent = (coords[0] / 500) * 100;
-                var yPercent = (coords[1] / 620) * 100;
-
-                var div = document.createElement('div');
-                div.className = 'absolute pointer-events-auto cursor-pointer group';
-                div.style.left = xPercent + '%';
-                div.style.top = yPercent + '%';
-                div.style.transform = 'translate(-50%, -50%)';
-
-                div.innerHTML = `
-                    <div class="w-3.5 h-3.5 rounded-full ${markerColor} shadow-[0_0_10px_3px] border-2 border-slate-950 transition-transform duration-150 hover:scale-150"></div>
-                    <div class="hidden group-hover:block absolute bg-slate-900 text-white text-[11px] p-2.5 rounded-xl border border-slate-700 shadow-2xl whitespace-nowrap z-50 -top-14 left-1/2 transform -translate-x-1/2">
-                        <p class="font-bold text-white">${item.coast}</p>
-                        <p class="text-[10px] text-slate-400 mt-0.5">수온: ${item.temp}℃ / pH: ${item.ph}</p>
-                    </div>
-                `;
-
-                div.addEventListener('click', function() {
-                    showDecisionResult(item);
+                // Leaflet 벡터 원형 마커 생성
+                var marker = L.circleMarker(coords, {
+                    radius: item.isCustom ? 9 : 7,
+                    fillColor: color,
+                    color: '#0f172a', // 테두리 색상
+                    weight: 2,
+                    opacity: 1,
+                    fillOpacity: 0.85
                 });
 
-                layer.appendChild(div);
+                // 마커 위 툴팁 장착
+                marker.bindTooltip("<strong>" + item.coast + "</strong><br>수온: " + item.temp + "℃ | pH: " + item.ph, {
+                    direction: 'top',
+                    offset: [0, -5]
+                });
+
+                // 마커 클릭 이벤트 연동
+                marker.on('click', function() {
+                    showDecisionResult(item);
+                    map.setView(coords, 9);
+                });
+
+                markerGroup.addLayer(marker);
             });
         }
     </script>
