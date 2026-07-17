@@ -43,7 +43,8 @@
                     <span>✍️</span> 신규 연안 직접 입력 판정
                 </h2>
                 <p class="text-xs text-indigo-700 mb-4 leading-relaxed">
-                    목록에 없는 연안의 환경 변수를 수동으로 입력하여 기술 적용 가능 여부를 실시간으로 시뮬레이션합니다.
+                    목록에 없는 연안의 환경 변수를 수동으로 입력하여 기술 적용 가능 여부를 실시간으로 시뮬레이션합니다. 
+                    <br><span class="text-rose-600 font-bold">※ pH 값이 8.15와 0.5 초과 차이날 시 자동 사용 불가 처리됩니다.</span>
                 </p>
                 <form id="simulator-form" class="space-y-3">
                     <div>
@@ -197,7 +198,7 @@
             '해남만': [34.550, 126.505], '목포연안': [34.770, 126.375], '신안연안': [34.830, 126.115],
             '무안연안': [34.980, 126.425], '고창연안': [35.480, 126.510], '전주포연안': [35.655, 126.570],
             '군산연안': [35.990, 126.580], '보령연안': [36.330, 126.505], '천수만': [36.450, 126.430],
-            '태안연안': [36.750, 126.155], '가로림연안': [36.900, 126.340], '대산연안': [37.020, 126.425],
+            '태안연안': [36.750, 126.155], 지리['가로림연안']: [36.900, 126.340], '대산연안': [37.020, 126.425],
             '아산연안': [36.980, 126.755]
         };
 
@@ -208,15 +209,20 @@
         });
 
         function initMap() {
-            // 대한민국 중심부 세팅
             map = L.map('map').setView([35.9, 127.8], 7); 
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 attribution: '&copy; OpenStreetMap contributors'
             }).addTo(map);
         }
 
-        // 💡 [핵심 연산 로직] 요구조건 알고리즘 적용
+        // 💡 [판정 로직] 수온/pH 및 오차 예외 처리 적용
         function calculateDecision(region, temp, ph) {
+            // 추가된 예외 조건: pH 값이 8.15와 0.5 초과로 차이나면 무조건 사용 불가
+            // |pH - 8.15| > 0.5 (즉, pH < 7.65 또는 pH > 8.65)
+            if (Math.abs(ph - 8.15) > 0.5) {
+                return "사용 불가 (pH 임계치 오차 0.5 초과)";
+            }
+
             // 동해 혹은 서해: 수온 >= 17 이고 pH > 8.15
             if (region === "동해" || region === "서해") {
                 if (temp >= 17 && ph > 8.15) {
@@ -229,19 +235,17 @@
                     return "해양알칼리도 향상 기술 사용 가능";
                 }
             }
-            // 조건 미충족 시 무조건 사용 불가
+            
             return "사용 불가";
         }
 
         function fetchAndParseCSV() {
-            // 정확한 파일명 매핑 호출
             fetch("2002-2025_해양데이터_pH8.15초과_판정.csv")
                 .then(response => {
                     if (!response.ok) throw new Error("네트워크를 확인하거나 파일명을 확인해 주세요.");
                     return response.arrayBuffer();
                 })
                 .then(buffer => {
-                    // 한글 인코딩 깨짐 방지용 디코더 장착
                     const decoder = new TextDecoder('euc-kr');
                     const decodedText = decoder.decode(buffer);
                     
@@ -260,7 +264,6 @@
         }
 
         function processRawData(rawData) {
-            // 전달받은 실제 헤더구조인 '해역', '연안', '수온', 'pH'를 기준 객체화 수행
             oceanData = rawData
                 .filter(row => row['해역'] && row['연안'] && row['수온'] && row['pH'])
                 .map(row => {
@@ -269,7 +272,6 @@
                     const temp = parseFloat(row['수온']);
                     const ph = parseFloat(row['pH']);
                     
-                    // 파일 내부 판정 결과에 의존하지 않고 전송된 알고리즘 정식 기준에 맞추어 완전 재연산
                     const decision = calculateDecision(region, temp, ph);
 
                     return {
@@ -335,7 +337,6 @@
             };
         }
 
-        // 🛠️ 수동 정보 직접 입력 시뮬레이터 이벤트 핸들러
         function initCustomForm() {
             const form = document.getElementById('simulator-form');
             form.addEventListener('submit', (e) => {
@@ -349,8 +350,6 @@
                 if (!coastInput) return;
 
                 const customCoastName = `${coastInput} (사용자 입력)`;
-                
-                // 지정된 조건 분기식에 기반한 연산 통과
                 const decisionResult = calculateDecision(region, temp, ph);
 
                 const customRecord = {
@@ -362,13 +361,11 @@
                     isCustom: true
                 };
 
-                // 사용자가 입력한 내용을 명세표 최상단에 배치
                 oceanData.unshift(customRecord);
 
                 refreshView();
                 showDecisionResult(customRecord);
 
-                // 폼 입력 초기화
                 document.getElementById('sim-coast').value = "";
                 document.getElementById('sim-temp').value = "";
                 document.getElementById('sim-ph').value = "";
@@ -398,7 +395,9 @@
 
             const isAvail = item.decision.includes('사용 가능');
 
-            if (item.region === "동해" || item.region === "서해") {
+            if (item.decision.includes('오차')) {
+                typeLabel.textContent = "pH 임계 오차 제한 초과 (±0.5 초과)";
+            } else if (item.region === "동해" || item.region === "서해") {
                 typeLabel.textContent = "동/서해 기준 (수온 17℃↑, pH 8.15↑)";
             } else {
                 typeLabel.textContent = "남해 기준 (수온 19℃↑, pH 8.15↑)";
@@ -409,7 +408,7 @@
                 badge.textContent = "🟢 해양알칼리도 향상 기술 사용 가능";
             } else {
                 badge.className = "inline-block px-3 py-1.5 rounded-full text-xs font-bold mb-4 bg-rose-100 text-rose-800";
-                badge.textContent = "🔴 기술 사용 불가 지역";
+                badge.textContent = item.decision.includes('오차') ? "🔴 사용 불가 (오차 초과)" : "🔴 기술 사용 불가 지역";
             }
         }
 
@@ -447,7 +446,6 @@
             markersGroup.forEach(m => map.removeLayer(m));
             markersGroup = [];
 
-            // 기존 관측 데이터에 지정된 고정 위경도로 마커 시각화
             const dbOnly = data.filter(item => !item.isCustom);
 
             dbOnly.forEach(item => {
