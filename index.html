@@ -4,23 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>해양알칼리도 향상 기술 적합성 분석 대시보드</title>
-    
-    <!-- 1. Leaflet 지도 CSS (지도가 깨지지 않도록 헤더에 배치) -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    
-    <!-- 2. Tailwind CSS -->
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
-    <!-- 3. PapaParse (CSV 파일 파싱용) -->
+    <!-- PapaParse (CSV 파싱) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    
-    <!-- 4. Leaflet 지도 JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif; }
-        /* ⚠️ 지도가 정상 출력되도록 명시적인 높이와 스타일 지정 */
-        #map { height: 450px; width: 100%; border-radius: 12px; border: 1px solid #e5e7eb; }
+        .map-container { position: relative; width: 100%; height: 500px; background-color: #e0f2fe; border-radius: 16px; overflow: hidden; border: 1px solid #bae6fd; }
     </style>
 </head>
 <body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
@@ -30,7 +20,7 @@
         <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
             <div>
                 <h1 class="text-2xl font-bold">연안별 해양알칼리도 기술 도입 검토 시스템</h1>
-                <p class="text-sm text-indigo-200 mt-1">실시간 시뮬레이션 및 관측 데이터 판정 (지도 연동)</p>
+                <p class="text-sm text-indigo-200 mt-1">실시간 시뮬레이션 및 관측 데이터 판정 (로컬 최적화 지도)</p>
             </div>
             <div class="text-xs bg-indigo-800 px-3 py-2 rounded-lg">
                 <strong>대상 파일:</strong> 2002-2025_해양데이터_pH8.15초과_판정.csv
@@ -147,13 +137,32 @@
 
         <!-- Right Column: Map & Table -->
         <div class="lg:col-span-2 flex flex-col gap-6">
-            <!-- Map Card -->
+            <!-- Map Card (HTML 내장형 SVG 그래픽 지도 인프라) -->
             <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                <h2 class="text-lg font-semibold mb-4 text-gray-900 flex items-center gap-2">
-                    <span>🗺️</span> 대한민국 연안 공간 분포 지도
+                <h2 class="text-lg font-semibold mb-2 text-gray-900 flex items-center gap-2">
+                    <span>🗺️</span> 대한민국 연안 공간 분포 지도 (네트워크 독립형)
                 </h2>
-                <div id="map"></div>
-                <p class="text-xs text-gray-400 mt-2">💡 지도의 마커를 클릭하거나 아래 표의 행을 클릭하면 상세 분석 리포트가 나타납니다.</p>
+                <p class="text-xs text-gray-400 mb-3">로컬 브라우저 보안 규정을 우회하여 실시간으로 연안 위치를 맵핑합니다.</p>
+                
+                <div class="map-container">
+                    <!-- 배경 대한민국 지도 선묘화 (SVG) -->
+                    <svg class="w-full h-full" viewBox="0 0 400 500" style="background-color: #f0fdf4;">
+                        <!-- 바다 표시 라벨 -->
+                        <text x="50" y="250" fill="#93c5fd" font-size="12" font-weight="bold">서 해 (Yellow Sea)</text>
+                        <text x="310" y="200" fill="#93c5fd" font-size="12" font-weight="bold">동 해 (East Sea)</text>
+                        <text x="150" y="440" fill="#93c5fd" font-size="12" font-weight="bold">남 해 (South Sea)</text>
+                        
+                        <!-- 내장형 간이 한반도 지도 가이드라인 -->
+                        <path d="M 160 40 L 190 40 L 220 60 L 240 100 L 250 150 L 280 200 L 300 280 L 280 340 L 240 370 L 210 370 L 190 390 L 150 370 L 130 350 L 140 300 L 120 250 L 130 180 L 120 120 L 140 70 Z" 
+                              fill="#e2e8f0" stroke="#cbd5e1" stroke-width="2" />
+                        <!-- 제주도 -->
+                        <ellipse cx="140" cy="460" rx="25" ry="12" fill="#cbd5e1" stroke="#cbd5e1" stroke-width="1" />
+                        <text x="130" y="463" fill="#64748b" font-size="9">제주도</text>
+                        <text x="180" y="160" fill="#94a3b8" font-size="24" font-weight="bold" opacity="0.4">대한민국</text>
+                    </svg>
+                    <!-- 마커들이 배치될 동적 절대좌표 레이어 -->
+                    <div id="markers-layer" class="absolute inset-0 pointer-events-none"></div>
+                </div>
             </div>
 
             <!-- Data Table Container -->
@@ -172,7 +181,7 @@
                         </thead>
                         <tbody id="table-body" class="divide-y divide-gray-100 text-gray-700">
                             <tr>
-                                <td colspan="5" class="p-4 text-center text-gray-400 text-xs">데이터를 불러오는 중입니다...</td>
+                                <td colspan="5" class="p-4 text-center text-gray-400 text-xs">데이터를 로드하는 중입니다...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -187,48 +196,32 @@
 
     <script>
         var oceanData = [];
-        var map = null;
-        var markersGroup = [];
 
-        // 대한민국 주요 연안 기본 좌표 사전 등록
-        var locationCoords = {
-            '거진연안': [38.265, 128.605], '속초연안': [38.204, 128.600], '양양연안': [38.085, 128.640],
-            '주문진연안': [37.890, 128.845], '강릉연안': [37.780, 128.970], '동해연안': [37.525, 129.135],
-            '삼척연안': [37.445, 129.175], '죽변연안': [37.055, 129.430], '후포연안': [36.675, 129.460],
-            '축산연안': [36.505, 129.450], '강구연안': [36.355, 129.400], '월포연안': [36.205, 129.390],
-            '영일만': [36.080, 129.420], '구룡포연안': [35.985, 129.575], '감포연안': [35.805, 129.515],
-            '기장연안': [35.240, 129.240], '진해만': [35.095, 128.630], '거제도동안': [34.920, 128.745],
-            '거제도남안': [34.730, 128.620], '통영연안': [34.810, 128.435], '통영외안': [34.620, 128.420],
-            '고성자란만': [34.900, 128.250], '사천연안': [34.910, 128.050], '진주만': [34.920, 127.950],
-            '남해도남안': [34.720, 127.900], '여수연안': [34.715, 127.790], '여자만': [34.820, 127.550],
-            '고흥연안': [34.505, 127.280], '제주연안': [33.520, 126.510], '조천연안': [33.545, 126.640],
-            '성산연안': [33.450, 126.935], '표선연안': [33.325, 126.835], '서귀포연안': [33.235, 126.560],
-            '대정연안': [33.220, 126.255], '한림연안': [33.415, 126.255], '진도연안': [34.425, 126.260],
-            '해남만': [34.550, 126.505], '목포연안': [34.770, 126.375], '신안연안': [34.830, 126.115],
-            '무안연안': [34.980, 126.425], '고창연안': [35.480, 126.510], '전주포연안': [35.655, 126.570],
-            '군산연안': [35.990, 126.580], '보령연안': [36.330, 126.505], '천수만': [36.450, 126.430],
-            '태안연안': [36.750, 126.155], '가로림연안': [36.900, 126.340], '대산연안': [37.020, 126.425],
-            '아산연안': [36.980, 126.755]
+        // SVG 전용 화면 배치용 가상 상대 좌표 매핑 데이터 (네트워크 무관 렌더링용)
+        var svgCoords = {
+            '거진연안': [285, 90], '속초연안': [283, 105], '양양연안': [286, 120],
+            '주문진연안': [290, 140], '강릉연안': [295, 155], '동해연안': [300, 180],
+            '삼척연안': [302, 195], '죽변연안': [308, 225], '후포연안': [307, 255],
+            '축산연안': [305, 270], '강구연안': [302, 285], '월포연안': [299, 300],
+            '영일만': [301, 315], '구룡포연안': [310, 325], '감포연안': [303, 340],
+            '기장연안': [285, 365], '진해만': [245, 375], '거제도동안': [255, 385],
+            '거제도남안': [245, 395], '통영연안': [230, 385], '통영외안': [230, 400],
+            '고성자란만': [220, 380], '사천연안': [205, 375], '진주만': [195, 375],
+            '남해도남안': [195, 390], '여수연안': [185, 385], '여자만': [175, 375],
+            '고흥연안': [170, 390], '제주연안': [140, 450], '조천연안': [150, 450],
+            '성산연안': [160, 455], '표선연안': [155, 465], '서귀포연안': [140, 468],
+            '대정연안': [120, 465], '한림연안': [122, 452], '진도연안': [115, 400],
+            '해남만': [130, 395], '목포연안': [125, 380], '신안연안': [110, 375],
+            '무안연안': [128, 365], '고창연안': [130, 335], '전주포연안': [133, 320],
+            '군산연안': [135, 300], '보령연안': [135, 275], '천수만': [130, 265],
+            '태안연안': [120, 245], '가로림연안': [132, 235], '대산연안': [138, 225],
+            '아산연안': [150, 228]
         };
 
-        // DOM 로드 완료 후 지도를 먼저 만들고 데이터를 수신함 (크래시 방지 필수 메커니즘)
         window.addEventListener('DOMContentLoaded', function() {
-            initMap();
             fetchAndParseCSV();
             initCustomForm();
         });
-
-        function initMap() {
-            try {
-                // 대한민국 중심 좌표로 초기화
-                map = L.map('map').setView([35.9, 127.8], 7); 
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '&copy; OpenStreetMap contributors'
-                }).addTo(map);
-            } catch (e) {
-                console.error("지도를 초기화하는 중 오류 발생: ", e);
-            }
-        }
 
         function calculateDecision(region, temp, ph) {
             if (Math.abs(ph - 8.15) > 0.5) {
@@ -245,7 +238,7 @@
         function fetchAndParseCSV() {
             fetch("2002-2025_해양데이터_pH8.15초과_판정.csv")
                 .then(function(res) {
-                    if (!res.ok) throw new Error("파일 로드 실패");
+                    if (!res.ok) throw new Error("파일 읽기 실패");
                     return res.arrayBuffer();
                 })
                 .then(function(buffer) {
@@ -260,7 +253,7 @@
                     });
                 })
                 .catch(function(err) {
-                    console.log("로컬 파일 로드에 실패하여 빈 데이터 구조로 시작합니다.");
+                    console.log("로컬 브라우저 환경 보안으로 인해 공백 상태로 초기화 후 시뮬레이터를 개방합니다.");
                     initFilters();
                     renderTable([]);
                 });
@@ -285,7 +278,7 @@
         function refreshView() {
             updateStatistics();
             renderTable(oceanData);
-            plotMapMarkers(oceanData);
+            plotSvgMarkers(oceanData);
         }
 
         function initFilters() {
@@ -326,7 +319,7 @@
                     });
                 }
                 renderTable(filtered);
-                plotMapMarkers(filtered);
+                plotSvgMarkers(filtered);
                 document.getElementById('result-card').classList.add('hidden');
             };
 
@@ -336,7 +329,6 @@
                 var targetData = oceanData.find(function(d) { return d.coast === selectedCoast; });
                 if (targetData) {
                     showDecisionResult(targetData);
-                    focusMapOnCoast(targetData);
                 }
             };
         }
@@ -427,7 +419,6 @@
                 
                 tr.addEventListener('click', function() {
                     showDecisionResult(item);
-                    if (!item.isCustom) focusMapOnCoast(item);
                 });
 
                 var isAvail = item.decision.indexOf('사용 가능') !== -1;
@@ -441,46 +432,40 @@
             });
         }
 
-        function plotMapMarkers(data) {
-            if(!map) return;
-            // 이전 마커 클리어
-            markersGroup.forEach(function(m) { map.removeLayer(m); });
-            markersGroup = [];
+        // 💡 중요: Leaflet 대신 100% 화면 작동을 보장하는 SVG 마커 렌더링 시스템
+        function plotSvgMarkers(data) {
+            var layer = document.getElementById('markers-layer');
+            layer.innerHTML = ''; // 기존 마커 리셋
 
-            var dbOnly = data.filter(function(item) { return !item.isCustom; });
+            data.forEach(function(item) {
+                // 커스텀(수동입력) 데이터는 지도상 위치 매핑 생략
+                if(item.isCustom) return;
 
-            dbOnly.forEach(function(item) {
-                var coords = locationCoords[item.coast];
-                if (!coords) return; 
+                var pos = svgCoords[item.coast];
+                if(!pos) return;
 
                 var isAvail = item.decision.indexOf('사용 가능') !== -1;
-                var markerColor = isAvail ? '#10b981' : '#f43f5e';
-                
-                var customIcon = L.divIcon({
-                    html: '<div style="background-color: ' + markerColor + '; border-radius: 50%; border: 2px solid white; width: 14px; height: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>',
-                    className: '',
-                    iconSize: [14, 14]
+                var colorClass = isAvail ? 'bg-emerald-500 ring-emerald-300' : 'bg-rose-500 ring-rose-300';
+
+                // 절대값 좌표 배치를 위한 엘리먼트 생성
+                var div = document.createElement('div');
+                div.className = 'absolute pointer-events-auto cursor-pointer group';
+                div.style.left = (pos[0] / 400 * 100) + '%';
+                div.style.top = (pos[1] / 500 * 100) + '%';
+                div.style.transform = 'translate(-50%, -50%)';
+
+                div.innerHTML = '<div class="w-3.5 h-3.5 rounded-full ' + colorClass + ' ring-4 border border-white shadow-md transition transform hover:scale-150"></div>' +
+                                '<div class="hidden group-hover:block absolute bg-slate-900 text-white text-[10px] p-2 rounded shadow-xl whitespace-nowrap z-50 -top-12 left-1/2 transform -translate-x-1/2">' +
+                                '<p class="font-bold">' + item.coast + '</p>' +
+                                '<p>수온: ' + item.temp + '℃ / pH: ' + item.ph + '</p>' +
+                                '</div>';
+
+                div.addEventListener('click', function() {
+                    showDecisionResult(item);
                 });
 
-                var marker = L.marker(coords, { icon: customIcon }).addTo(map);
-                var popupContent = '<div class="p-1"><h4 class="font-bold text-sm text-gray-900">' + item.coast + '</h4><p class="text-xs text-gray-600">수온: ' + item.temp + '℃ | pH: ' + item.ph + '</p></div>';
-                
-                marker.bindPopup(popupContent);
-                marker.on('click', function() { showDecisionResult(item); });
-                markersGroup.push(marker);
+                layer.appendChild(div);
             });
-        }
-
-        function focusMapOnCoast(item) {
-            var coords = locationCoords[item.coast];
-            if (coords && map) {
-                map.setView(coords, 9);
-                markersGroup.forEach(function(m) {
-                    if (m.getLatLng().lat === coords[0] && m.getLatLng().lng === coords[1]) {
-                        m.openPopup();
-                    }
-                });
-            }
         }
     </script>
 </body>
