@@ -4,15 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>해양알칼리도 향상 기술 적합성 분석 대시보드</title>
-    <!-- Tailwind CSS (안정적인 v3 배포판으로 교체) -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- PapaParse (EUC-KR CSV 파싱 라이브러리) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    <!-- Leaflet.js (인터랙티브 지도 라이브러리) -->
+    
+    <!-- 1. Leaflet 지도 CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- 2. Tailwind CSS (안정적인 v3 버전) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 3. PapaParse (CSV 파싱 라이브러리) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    
+    <!-- 4. Leaflet 지도 JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
     <style>
-        body { font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif; }
         #map { height: 440px; width: 100%; z-index: 1; }
     </style>
 </head>
@@ -90,7 +96,7 @@
                     <div>
                         <label class="block text-xs font-medium text-gray-600 mb-1">상세 연안 선택</label>
                         <select id="coast-select" class="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-                            <option value="">해역을 먼저 선택하세요</option>
+                            <option value="">선택 가능한 연안 없음</option>
                         </select>
                     </div>
                 </div>
@@ -164,7 +170,8 @@
                             </tr>
                         </thead>
                         <tbody id="table-body" class="divide-y divide-gray-100 text-gray-700">
-                            <!-- JS를 활용한 동적 행 추가 공간 -->
+                            <!-- 기본 안내 메시지 -->
+                            <tr id="empty-row"><td colspan="5" class="p-4 text-center text-gray-400 text-xs">데이터를 불러오는 중이거나 수동 입력을 대기하고 있습니다.</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -177,12 +184,12 @@
     </footer>
 
     <script>
-        let oceanData = [];
-        let map = null;
-        let markersGroup = [];
+        var oceanData = [];
+        var map = null;
+        var markersGroup = [];
 
-        // 주요 연안 공간 시각화용 기본 매핑 데이터 좌표계 (오타 수정 완)
-        const locationCoords = {
+        // 주요 연안 좌표계 데이터 고정
+        var locationCoords = {
             '거진연안': [38.265, 128.605], '속초연안': [38.204, 128.600], '양양연안': [38.085, 128.640],
             '주문진연안': [37.890, 128.845], '강릉연안': [37.780, 128.970], '동해연안': [37.525, 129.135],
             '삼척연안': [37.445, 129.175], '죽변연안': [37.055, 129.430], '후포연안': [36.675, 129.460],
@@ -202,52 +209,45 @@
             '아산연안': [36.980, 126.755]
         };
 
-        window.addEventListener('DOMContentLoaded', () => {
+        window.addEventListener('load', function() {
             initMap();
             fetchAndParseCSV();
             initCustomForm();
         });
 
         function initMap() {
-            map = L.map('map').setView([35.9, 127.8], 7); 
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                attribution: '&copy; OpenStreetMap contributors'
-            }).addTo(map);
+            try {
+                map = L.map('map').setView([35.9, 127.8], 7); 
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: 'OpenStreetMap'
+                }).addTo(map);
+            } catch (e) {
+                console.log("지도 로드 에러 무시: ", e);
+            }
         }
 
-        // 💡 [판정 로직] 수온/pH 및 오차 예외 처리 적용
+        // 💡 핵심 판정 로직 (pH 차이 오차 조건 적용)
         function calculateDecision(region, temp, ph) {
-            // 예외 조건: pH 값이 8.15와 0.5 초과로 차이나면 무조건 사용 불가
             if (Math.abs(ph - 8.15) > 0.5) {
                 return "사용 불가 (pH 임계치 오차 0.5 초과)";
             }
-
-            // 동해 혹은 서해: 수온 >= 17 이고 pH > 8.15
             if (region === "동해" || region === "서해") {
-                if (temp >= 17 && ph > 8.15) {
-                    return "해양알칼리도 향상 기술 사용 가능";
-                }
-            } 
-            // 남해: 수온 >= 19 이고 pH > 8.15
-            else if (region === "남해") {
-                if (temp >= 19 && ph > 8.15) {
-                    return "해양알칼리도 향상 기술 사용 가능";
-                }
+                if (temp >= 17 && ph > 8.15) return "해양알칼리도 향상 기술 사용 가능";
+            } else if (region === "남해") {
+                if (temp >= 19 && ph > 8.15) return "해양알칼리도 향상 기술 사용 가능";
             }
-            
             return "사용 불가";
         }
 
         function fetchAndParseCSV() {
             fetch("2002-2025_해양데이터_pH8.15초과_판정.csv")
-                .then(response => {
-                    if (!response.ok) throw new Error("CSV 로드 실패");
-                    return response.arrayBuffer();
+                .then(function(res) {
+                    if (!res.ok) throw new Error("File not found");
+                    return res.arrayBuffer();
                 })
-                .then(buffer => {
-                    const decoder = new TextDecoder('euc-kr');
-                    const decodedText = decoder.decode(buffer);
-                    
+                .then(function(buffer) {
+                    var decoder = new TextDecoder('euc-kr');
+                    var decodedText = decoder.decode(buffer);
                     Papa.parse(decodedText, {
                         header: true,
                         skipEmptyLines: true,
@@ -256,27 +256,22 @@
                         }
                     });
                 })
-                .catch(err => {
-                    console.error(err);
-                    // 파일이 아직 준비되지 않았어도 웹앱이 구동될 수 있도록 핸들링 처리
-                    console.log("기본 CSV 데이터 파일을 로드하지 못했으나, 수동 입력 시뮬레이션은 즉시 사용 가능합니다.");
+                .catch(function(err) {
+                    console.log("CORS 또는 로컬 보안으로 인해 파일 자동 로드가 방지되었습니다. 수동 입력은 정상 작동합니다.");
+                    initFilters(); // 빈 데이터 상태로 필터 구조 활성화
                 });
         }
 
         function processRawData(rawData) {
             oceanData = rawData
-                .filter(row => row['해역'] && row['연안'] && row['수온'] && row['pH'])
-                .map(row => {
-                    const region = row['해역'].trim();
-                    const coast = row['연안'].trim();
-                    const temp = parseFloat(row['수온']);
-                    const ph = parseFloat(row['pH']);
-                    
-                    const decision = calculateDecision(region, temp, ph);
-
-                    return {
-                        region, coast, temp, ph, decision, isCustom: false
-                    };
+                .filter(function(row) { return row['해역'] && row['연안'] && row['수온'] && row['pH']; })
+                .map(function(row) {
+                    var region = row['해역'].trim();
+                    var coast = row['연안'].trim();
+                    var temp = parseFloat(row['수온']);
+                    var ph = parseFloat(row['pH']);
+                    var decision = calculateDecision(region, temp, ph);
+                    return { region: region, coast: coast, temp: temp, ph: ph, decision: decision, isCustom: false };
                 });
 
             initFilters();
@@ -286,50 +281,53 @@
         function refreshView() {
             updateStatistics();
             renderTable(oceanData);
-            plotMapMarkers(oceanData);
+            if(map) plotMapMarkers(oceanData);
         }
 
         function initFilters() {
-            const regionSelect = document.getElementById('region-select');
-            const coastSelect = document.getElementById('coast-select');
+            var regionSelect = document.getElementById('region-select');
+            var coastSelect = document.getElementById('coast-select');
 
-            const originData = oceanData.filter(d => !d.isCustom);
-            const regions = [...new Set(originData.map(d => d.region))];
+            var originData = oceanData.filter(function(d) { return !d.isCustom; });
+            var uniqueRegions = [];
+            originData.forEach(function(d) {
+                if(uniqueRegions.indexOf(d.region) === -1) uniqueRegions.push(d.region);
+            });
             
             regionSelect.innerHTML = '<option value="ALL">전체 해역</option>';
-            regions.forEach(r => {
-                const opt = document.createElement('option');
+            uniqueRegions.forEach(function(r) {
+                var opt = document.createElement('option');
                 opt.value = r; opt.textContent = r;
                 regionSelect.appendChild(opt);
             });
 
-            regionSelect.onchange = (e) => {
-                const selectedRegion = e.target.value;
+            regionSelect.onchange = function(e) {
+                var selectedRegion = e.target.value;
                 coastSelect.innerHTML = '<option value="">선택하세요</option>';
                 
-                let filtered = oceanData;
+                var filtered = oceanData;
                 if (selectedRegion !== 'ALL') {
-                    filtered = oceanData.filter(d => d.region === selectedRegion);
-                    
-                    const originalFiltered = filtered.filter(d => !d.isCustom);
-                    const coasts = [...new Set(originalFiltered.map(d => d.coast))];
-                    coasts.forEach(c => {
-                        const opt = document.createElement('option');
+                    filtered = oceanData.filter(function(d) { return d.region === selectedRegion; });
+                    var originalFiltered = filtered.filter(function(d) { return !d.isCustom; });
+                    var uniqueCoasts = [];
+                    originalFiltered.forEach(function(d) {
+                        if(uniqueCoasts.indexOf(d.coast) === -1) uniqueCoasts.push(d.coast);
+                    });
+                    uniqueCoasts.forEach(function(c) {
+                        var opt = document.createElement('option');
                         opt.value = c; opt.textContent = c;
                         coastSelect.appendChild(opt);
                     });
                 }
-                
                 renderTable(filtered);
-                plotMapMarkers(filtered);
+                if(map) plotMapMarkers(filtered);
                 document.getElementById('result-card').classList.add('hidden');
             };
 
-            coastSelect.onchange = (e) => {
-                const selectedCoast = e.target.value;
+            coastSelect.onchange = function(e) {
+                var selectedCoast = e.target.value;
                 if (!selectedCoast) return;
-
-                const targetData = oceanData.find(d => d.coast === selectedCoast);
+                var targetData = oceanData.find(function(d) { return d.coast === selectedCoast; });
                 if (targetData) {
                     showDecisionResult(targetData);
                     focusMapOnCoast(targetData);
@@ -338,21 +336,21 @@
         }
 
         function initCustomForm() {
-            const form = document.getElementById('simulator-form');
-            form.addEventListener('submit', (e) => {
+            var form = document.getElementById('simulator-form');
+            form.addEventListener('submit', function(e) {
                 e.preventDefault();
 
-                const region = document.getElementById('sim-region').value;
-                const coastInput = document.getElementById('sim-coast').value.trim();
-                const temp = parseFloat(document.getElementById('sim-temp').value);
-                const ph = parseFloat(document.getElementById('sim-ph').value);
+                var region = document.getElementById('sim-region').value;
+                var coastInput = document.getElementById('sim-coast').value.trim();
+                var temp = parseFloat(document.getElementById('sim-temp').value);
+                var ph = parseFloat(document.getElementById('sim-ph').value);
 
                 if (!coastInput) return;
 
-                const customCoastName = `${coastInput} (사용자 입력)`;
-                const decisionResult = calculateDecision(region, temp, ph);
+                var customCoastName = coastInput + " (사용자 입력)";
+                var decisionResult = calculateDecision(region, temp, ph);
 
-                const customRecord = {
+                var customRecord = {
                     region: region,
                     coast: customCoastName,
                     temp: temp,
@@ -362,40 +360,36 @@
                 };
 
                 oceanData.unshift(customRecord);
-
                 refreshView();
                 showDecisionResult(customRecord);
 
                 document.getElementById('sim-coast').value = "";
                 document.getElementById('sim-temp').value = "";
                 document.getElementById('sim-ph').value = "";
-
-                alert(`[${customCoastName}] 판정이 완료되었습니다.\n결과: ${decisionResult}`);
             });
         }
 
         function updateStatistics() {
-            const availableCount = oceanData.filter(d => d.decision.includes('사용 가능')).length;
-            const unavailableCount = oceanData.length - availableCount;
+            var availableCount = oceanData.filter(function(d) { return d.decision.indexOf('사용 가능') !== -1; }).length;
+            var unavailableCount = oceanData.length - availableCount;
 
             document.getElementById('cnt-available').textContent = availableCount + "개소";
             document.getElementById('cnt-unavailable').textContent = unavailableCount + "개소";
         }
 
         function showDecisionResult(item) {
-            const card = document.getElementById('result-card');
-            const badge = document.getElementById('status-badge');
-            const typeLabel = document.getElementById('res-type');
+            var card = document.getElementById('result-card');
+            var badge = document.getElementById('status-badge');
+            var typeLabel = document.getElementById('res-type');
             
-            document.getElementById('res-name').textContent = `[${item.region}] ${item.coast}`;
+            document.getElementById('res-name').textContent = "[" + item.region + "] " + item.coast;
             document.getElementById('res-temp').textContent = item.temp + " ℃";
             document.getElementById('res-ph').textContent = item.ph;
 
             card.classList.remove('hidden');
+            var isAvail = item.decision.indexOf('사용 가능') !== -1;
 
-            const isAvail = item.decision.includes('사용 가능');
-
-            if (item.decision.includes('오차')) {
+            if (item.decision.indexOf('오차') !== -1) {
                 typeLabel.textContent = "pH 임계 오차 제한 초과 (±0.5 초과)";
             } else if (item.region === "동해" || item.region === "서해") {
                 typeLabel.textContent = "동/서해 기준 (수온 17℃↑, pH 8.15↑)";
@@ -408,80 +402,73 @@
                 badge.textContent = "🟢 해양알칼리도 향상 기술 사용 가능";
             } else {
                 badge.className = "inline-block px-3 py-1.5 rounded-full text-xs font-bold mb-4 bg-rose-100 text-rose-800";
-                badge.textContent = item.decision.includes('오차') ? "🔴 사용 불가 (오차 초과)" : "🔴 기술 사용 불가 지역";
+                badge.textContent = item.decision.indexOf('오차') !== -1 ? "🔴 사용 불가 (오차 초과)" : "🔴 기술 사용 불가 지역";
             }
         }
 
         function renderTable(data) {
-            const tbody = document.getElementById('table-body');
+            var tbody = document.getElementById('table-body');
             tbody.innerHTML = '';
 
-            data.forEach(item => {
-                const tr = document.createElement('tr');
-                tr.className = `hover:bg-gray-100 cursor-pointer transition ${item.isCustom ? 'bg-indigo-50 border-l-4 border-indigo-500 font-semibold' : ''}`;
+            if (data.length === 0) {
+                tbody.innerHTML = '<tr id="empty-row"><td colspan="5" class="p-4 text-center text-gray-400 text-xs">등록된 데이터가 없습니다. 좌측 시뮬레이터로 추가해보세요!</td></tr>';
+                return;
+            }
+
+            data.forEach(function(item) {
+                var tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-100 cursor-pointer transition " + (item.isCustom ? 'bg-indigo-50 border-l-4 border-indigo-500 font-semibold' : '');
                 
-                tr.addEventListener('click', () => {
+                tr.addEventListener('click', function() {
                     showDecisionResult(item);
                     if (!item.isCustom) focusMapOnCoast(item);
                 });
 
-                const isAvail = item.decision.includes('사용 가능');
+                var isAvail = item.decision.indexOf('사용 가능') !== -1;
                 
-                tr.innerHTML = `
-                    <td class="p-3 text-gray-500">${item.region} ${item.isCustom ? '📌' : ''}</td>
-                    <td class="p-3 text-gray-900">${item.coast}</td>
-                    <td class="p-3">${item.temp}</td>
-                    <td class="p-3">${item.ph}</td>
-                    <td class="p-3">
-                        <span class="px-2 py-0.5 rounded text-xs font-semibold ${isAvail ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}">
-                            ${isAvail ? '사용 가능' : '사용 불가'}
-                        </span>
-                    </td>
-                `;
+                tr.innerHTML = '<td class="p-3 text-gray-500">' + item.region + ' ' + (item.isCustom ? '📌' : '') + '</td>' +
+                               '<td class="p-3 text-gray-900">' + item.coast + '</td>' +
+                               '<td class="p-3">' + item.temp + '</td>' +
+                               '<td class="p-3">' + item.ph + '</td>' +
+                               '<td class="p-3"><span class="px-2 py-0.5 rounded text-xs font-semibold ' + (isAvail ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700') + '">' + (isAvail ? '사용 가능' : '사용 불가') + '</span></td>';
                 tbody.appendChild(tr);
             });
         }
 
         function plotMapMarkers(data) {
-            markersGroup.forEach(m => map.removeLayer(m));
+            if(!map) return;
+            markersGroup.forEach(function(m) { map.removeLayer(m); });
             markersGroup = [];
 
-            const dbOnly = data.filter(item => !item.isCustom);
+            var dbOnly = data.filter(function(item) { return !item.isCustom; });
 
-            dbOnly.forEach(item => {
-                const coords = locationCoords[item.coast];
+            dbOnly.forEach(function(item) {
+                var coords = locationCoords[item.coast];
                 if (!coords) return; 
 
-                const isAvail = item.decision.includes('사용 가능');
-                let markerColor = isAvail ? '#10b981' : '#f43f5e';
+                var isAvail = item.decision.indexOf('사용 가능') !== -1;
+                var markerColor = isAvail ? '#10b981' : '#f43f5e';
                 
-                const customIcon = L.divIcon({
-                    html: `<div style="background-color: ${markerColor}; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.3); border: 2px solid white; width: 14px; height: 14px;"></div>`,
+                var customIcon = L.divIcon({
+                    html: '<div style="background-color: ' + markerColor + '; border-radius: 50%; box-shadow: 0 2px 5px rgba(0,0,0,0.3); border: 2px solid white; width: 14px; height: 14px;"></div>',
                     className: '',
                     iconSize: [14, 14]
                 });
 
-                const marker = L.marker(coords, { icon: customIcon }).addTo(map);
+                var marker = L.marker(coords, { icon: customIcon }).addTo(map);
+                var popupContent = '<div class="p-1"><h4 class="font-bold text-sm text-gray-900">' + item.coast + '</h4><p class="text-xs text-gray-600 mt-0.5">수온: ' + item.temp + '℃ | pH: ' + item.ph + '</p><p class="text-xs font-bold mt-1 ' + (isAvail ? 'text-emerald-600':'text-rose-600') + '">' + item.decision + '</p></div>';
                 
-                const popupContent = `
-                    <div class="p-1">
-                        <h4 class="font-bold text-sm text-gray-900">${item.coast}</h4>
-                        <p class="text-xs text-gray-600 mt-0.5">수온: ${item.temp}℃ | pH: ${item.ph}</p>
-                        <p class="text-xs font-bold mt-1 ${isAvail ? 'text-emerald-600':'text-rose-600'}">${item.decision}</p>
-                    </div>
-                `;
                 marker.bindPopup(popupContent);
-                marker.on('click', () => showDecisionResult(item));
-
+                marker.on('click', function() { showDecisionResult(item); });
                 markersGroup.push(marker);
             });
         }
 
         function focusMapOnCoast(item) {
-            const coords = locationCoords[item.coast];
+            var coords = locationCoords[item.coast];
             if (coords && map) {
                 map.setView(coords, 9);
-                markersGroup.forEach(m => {
+                markersGroup.forEach(function(m) {
                     if (m.getLatLng().lat === coords[0] && m.getLatLng().lng === coords[1]) {
                         m.openPopup();
                     }
