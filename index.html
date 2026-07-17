@@ -4,10 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>해양알칼리도 향상 기술 적합성 분석 대시보드</title>
-    <!-- Tailwind CSS (가장 안정적인 v3 버전 주소) -->
+    
+    <!-- 1. Leaflet 지도 CSS (지도가 깨지지 않도록 헤더에 배치) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- 2. Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- PapaParse (CSV 파일 파싱용) -->
+    
+    <!-- 3. PapaParse (CSV 파일 파싱용) -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    
+    <!-- 4. Leaflet 지도 JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif; }
+        /* ⚠️ 지도가 정상 출력되도록 명시적인 높이와 스타일 지정 */
+        #map { height: 450px; width: 100%; border-radius: 12px; border: 1px solid #e5e7eb; }
+    </style>
 </head>
 <body class="bg-gray-50 text-gray-800 min-h-screen flex flex-col">
 
@@ -16,7 +30,7 @@
         <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
             <div>
                 <h1 class="text-2xl font-bold">연안별 해양알칼리도 기술 도입 검토 시스템</h1>
-                <p class="text-sm text-indigo-200 mt-1">실시간 시뮬레이션 및 관측 데이터 판정</p>
+                <p class="text-sm text-indigo-200 mt-1">실시간 시뮬레이션 및 관측 데이터 판정 (지도 연동)</p>
             </div>
             <div class="text-xs bg-indigo-800 px-3 py-2 rounded-lg">
                 <strong>대상 파일:</strong> 2002-2025_해양데이터_pH8.15초과_판정.csv
@@ -131,12 +145,21 @@
             </div>
         </div>
 
-        <!-- Right Column: Table Only -->
+        <!-- Right Column: Map & Table -->
         <div class="lg:col-span-2 flex flex-col gap-6">
+            <!-- Map Card -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                <h2 class="text-lg font-semibold mb-4 text-gray-900 flex items-center gap-2">
+                    <span>🗺️</span> 대한민국 연안 공간 분포 지도
+                </h2>
+                <div id="map"></div>
+                <p class="text-xs text-gray-400 mt-2">💡 지도의 마커를 클릭하거나 아래 표의 행을 클릭하면 상세 분석 리포트가 나타납니다.</p>
+            </div>
+
             <!-- Data Table Container -->
             <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                 <h2 class="text-lg font-semibold mb-3 text-gray-900">📋 종합 분석 데이터 명세표</h2>
-                <div class="overflow-x-auto max-h-[600px]">
+                <div class="overflow-x-auto max-h-[400px]">
                     <table class="w-full text-left border-collapse text-sm">
                         <thead>
                             <tr class="bg-gray-50 text-gray-600 sticky top-0 border-b border-gray-200">
@@ -164,14 +187,49 @@
 
     <script>
         var oceanData = [];
+        var map = null;
+        var markersGroup = [];
 
-        // 페이지 로드 완료 후 즉시 실행
+        // 대한민국 주요 연안 기본 좌표 사전 등록
+        var locationCoords = {
+            '거진연안': [38.265, 128.605], '속초연안': [38.204, 128.600], '양양연안': [38.085, 128.640],
+            '주문진연안': [37.890, 128.845], '강릉연안': [37.780, 128.970], '동해연안': [37.525, 129.135],
+            '삼척연안': [37.445, 129.175], '죽변연안': [37.055, 129.430], '후포연안': [36.675, 129.460],
+            '축산연안': [36.505, 129.450], '강구연안': [36.355, 129.400], '월포연안': [36.205, 129.390],
+            '영일만': [36.080, 129.420], '구룡포연안': [35.985, 129.575], '감포연안': [35.805, 129.515],
+            '기장연안': [35.240, 129.240], '진해만': [35.095, 128.630], '거제도동안': [34.920, 128.745],
+            '거제도남안': [34.730, 128.620], '통영연안': [34.810, 128.435], '통영외안': [34.620, 128.420],
+            '고성자란만': [34.900, 128.250], '사천연안': [34.910, 128.050], '진주만': [34.920, 127.950],
+            '남해도남안': [34.720, 127.900], '여수연안': [34.715, 127.790], '여자만': [34.820, 127.550],
+            '고흥연안': [34.505, 127.280], '제주연안': [33.520, 126.510], '조천연안': [33.545, 126.640],
+            '성산연안': [33.450, 126.935], '표선연안': [33.325, 126.835], '서귀포연안': [33.235, 126.560],
+            '대정연안': [33.220, 126.255], '한림연안': [33.415, 126.255], '진도연안': [34.425, 126.260],
+            '해남만': [34.550, 126.505], '목포연안': [34.770, 126.375], '신안연안': [34.830, 126.115],
+            '무안연안': [34.980, 126.425], '고창연안': [35.480, 126.510], '전주포연안': [35.655, 126.570],
+            '군산연안': [35.990, 126.580], '보령연안': [36.330, 126.505], '천수만': [36.450, 126.430],
+            '태안연안': [36.750, 126.155], '가로림연안': [36.900, 126.340], '대산연안': [37.020, 126.425],
+            '아산연안': [36.980, 126.755]
+        };
+
+        // DOM 로드 완료 후 지도를 먼저 만들고 데이터를 수신함 (크래시 방지 필수 메커니즘)
         window.addEventListener('DOMContentLoaded', function() {
+            initMap();
             fetchAndParseCSV();
             initCustomForm();
         });
 
-        // 💡 pH 차이가 8.15와 0.5 초과해서 나면 무조건 사용 불가 처리하는 판정 로직
+        function initMap() {
+            try {
+                // 대한민국 중심 좌표로 초기화
+                map = L.map('map').setView([35.9, 127.8], 7); 
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '&copy; OpenStreetMap contributors'
+                }).addTo(map);
+            } catch (e) {
+                console.error("지도를 초기화하는 중 오류 발생: ", e);
+            }
+        }
+
         function calculateDecision(region, temp, ph) {
             if (Math.abs(ph - 8.15) > 0.5) {
                 return "사용 불가 (pH 임계치 오차 0.5 초과)";
@@ -187,7 +245,7 @@
         function fetchAndParseCSV() {
             fetch("2002-2025_해양데이터_pH8.15초과_판정.csv")
                 .then(function(res) {
-                    if (!res.ok) throw new Error("파일 없음");
+                    if (!res.ok) throw new Error("파일 로드 실패");
                     return res.arrayBuffer();
                 })
                 .then(function(buffer) {
@@ -202,7 +260,7 @@
                     });
                 })
                 .catch(function(err) {
-                    console.log("로컬 보안 또는 파일 부재로 빈 상태에서 수동 입력을 활성화합니다.");
+                    console.log("로컬 파일 로드에 실패하여 빈 데이터 구조로 시작합니다.");
                     initFilters();
                     renderTable([]);
                 });
@@ -227,6 +285,7 @@
         function refreshView() {
             updateStatistics();
             renderTable(oceanData);
+            plotMapMarkers(oceanData);
         }
 
         function initFilters() {
@@ -267,6 +326,7 @@
                     });
                 }
                 renderTable(filtered);
+                plotMapMarkers(filtered);
                 document.getElementById('result-card').classList.add('hidden');
             };
 
@@ -276,6 +336,7 @@
                 var targetData = oceanData.find(function(d) { return d.coast === selectedCoast; });
                 if (targetData) {
                     showDecisionResult(targetData);
+                    focusMapOnCoast(targetData);
                 }
             };
         }
@@ -366,6 +427,7 @@
                 
                 tr.addEventListener('click', function() {
                     showDecisionResult(item);
+                    if (!item.isCustom) focusMapOnCoast(item);
                 });
 
                 var isAvail = item.decision.indexOf('사용 가능') !== -1;
@@ -377,6 +439,48 @@
                                '<td class="p-3"><span class="px-2 py-0.5 rounded text-xs font-semibold ' + (isAvail ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700') + '">' + (isAvail ? '사용 가능' : '사용 불가') + '</span></td>';
                 tbody.appendChild(tr);
             });
+        }
+
+        function plotMapMarkers(data) {
+            if(!map) return;
+            // 이전 마커 클리어
+            markersGroup.forEach(function(m) { map.removeLayer(m); });
+            markersGroup = [];
+
+            var dbOnly = data.filter(function(item) { return !item.isCustom; });
+
+            dbOnly.forEach(function(item) {
+                var coords = locationCoords[item.coast];
+                if (!coords) return; 
+
+                var isAvail = item.decision.indexOf('사용 가능') !== -1;
+                var markerColor = isAvail ? '#10b981' : '#f43f5e';
+                
+                var customIcon = L.divIcon({
+                    html: '<div style="background-color: ' + markerColor + '; border-radius: 50%; border: 2px solid white; width: 14px; height: 14px; box-shadow: 0 2px 4px rgba(0,0,0,0.3);"></div>',
+                    className: '',
+                    iconSize: [14, 14]
+                });
+
+                var marker = L.marker(coords, { icon: customIcon }).addTo(map);
+                var popupContent = '<div class="p-1"><h4 class="font-bold text-sm text-gray-900">' + item.coast + '</h4><p class="text-xs text-gray-600">수온: ' + item.temp + '℃ | pH: ' + item.ph + '</p></div>';
+                
+                marker.bindPopup(popupContent);
+                marker.on('click', function() { showDecisionResult(item); });
+                markersGroup.push(marker);
+            });
+        }
+
+        function focusMapOnCoast(item) {
+            var coords = locationCoords[item.coast];
+            if (coords && map) {
+                map.setView(coords, 9);
+                markersGroup.forEach(function(m) {
+                    if (m.getLatLng().lat === coords[0] && m.getLatLng().lng === coords[1]) {
+                        m.openPopup();
+                    }
+                });
+            }
         }
     </script>
 </body>
